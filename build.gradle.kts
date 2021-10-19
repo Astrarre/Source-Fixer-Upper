@@ -63,6 +63,7 @@ tasks {
             "jdk.compiler/com.sun.tools.javac.file",
             "jdk.compiler/com.sun.tools.javac.tree",
             "jdk.compiler/com.sun.tools.javac.util",
+            "jdk.compiler/com.sun.tools.javac.comp",
             "jdk.javadoc/com.sun.tools.javac.parser",
             "jdk.javadoc/jdk.javadoc.internal.tool",
         )
