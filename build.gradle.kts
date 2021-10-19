@@ -4,7 +4,7 @@ plugins {
     signing
 }
 
-group = "org.example"
+group = "io.github.astrarre"
 version = "1.0.0-SNAPSHOT"
 
 repositories {
@@ -17,6 +17,8 @@ repositories {
 }
 
 dependencies {
+    implementation("net.fabricmc", "mapping-io", "0.3.0")
+
     testImplementation("org.junit.jupiter", "junit-jupiter-api", "5.8.1")
     testRuntimeOnly("org.junit.jupiter", "junit-jupiter-engine")
 }
@@ -26,8 +28,8 @@ sourceSets {
 
     create("console") {
         java {
-            compileClasspath += main.output
-            runtimeClasspath += main.output
+            compileClasspath += main.output + main.compileClasspath
+            runtimeClasspath += main.output + main.runtimeClasspath
         }
     }
 }
@@ -43,7 +45,8 @@ java {
 tasks {
     withType<JavaCompile> {
         options.encoding = "UTF-8"
-        options.release.set(16)
+        // Not compatible with --add-exports
+        // options.release.set(16)
     }
 
     withType<Test> {
@@ -52,6 +55,20 @@ tasks {
 
     withType<Javadoc> {
         (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
+    }
+
+    compileJava {
+        val exports = listOf(
+            "jdk.compiler/com.sun.tools.javac.api",
+            "jdk.compiler/com.sun.tools.javac.file",
+            "jdk.compiler/com.sun.tools.javac.tree",
+            "jdk.compiler/com.sun.tools.javac.util",
+            "jdk.javadoc/com.sun.tools.javac.parser",
+            "jdk.javadoc/jdk.javadoc.internal.tool",
+        )
+
+        options.compilerArgs.addAll(exports.flatMap { listOf("--add-exports", "$it=io.github.astrarre.sfu") })
+        println(options.compilerArgs.joinToString(separator = " "))
     }
 }
 
