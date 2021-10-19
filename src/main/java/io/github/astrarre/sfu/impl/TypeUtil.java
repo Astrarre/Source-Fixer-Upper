@@ -1,104 +1,110 @@
 package io.github.astrarre.sfu.impl;
 
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.ArrayType;
-import javax.lang.model.type.IntersectionType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.type.TypeVariable;
 
+import com.sun.source.tree.AnnotatedTypeTree;
+import com.sun.source.tree.ArrayTypeTree;
+import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.IntersectionTypeTree;
 import com.sun.source.tree.MemberSelectTree;
+import com.sun.source.tree.MethodInvocationTree;
+import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
+import com.sun.source.tree.ParameterizedTypeTree;
 import com.sun.source.tree.PrimitiveTypeTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.TypeParameterTree;
+import com.sun.source.tree.UnionTypeTree;
+import com.sun.source.tree.VariableTree;
+import com.sun.source.util.TreePath;
+import com.sun.source.util.Trees;
+import com.sun.tools.javac.tree.JCTree;
 
 public class TypeUtil {
-	public static String getInternalName(Tree tree) {
-		if(tree instanceof TypeElement e) {
-			return resolveInternalName(e);
+	private static final String ANON_HEADER = "<anonymous ";
+	final Trees trees;
+	CompilationUnitTree unitTree;
+
+	public TypeUtil(Trees trees) {
+		this.trees = trees;
+	}
+
+	public String getDesc(Tree tree) {
+		if(tree instanceof AnnotatedTypeTree e) {
+			return this.getDesc(e.getUnderlyingType());
 		} else if(tree instanceof PrimitiveTypeTree t) {
-			return getDesc_(t.getPrimitiveTypeKind(), null);
+			return DescVisitor.getPrimitiveDesc(t.getPrimitiveTypeKind());
+		} else if(tree instanceof IdentifierTree t) {
+			TreePath path = this.trees.getPath(this.unitTree, t);
+			return DescVisitor.getDesc(this.trees.getTypeMirror(path));
+		} else if(tree instanceof ParameterizedTypeTree t) {
+			return this.getDesc(t.getType());
+		} else if(tree instanceof MethodTree t) {
+			StringBuilder builder = new StringBuilder();
+			builder.append('(');
+			for(VariableTree parameter : t.getParameters()) {
+				builder.append(this.getDesc(parameter.getType()));
+			}
+			builder.append(')');
+			Tree returnType = t.getReturnType();
+			if(returnType != null) {
+				builder.append(this.getDesc(returnType));
+			} else {
+				builder.append('V');
+			}
+			return builder.toString();
+		} else if(tree instanceof ArrayTypeTree t) {
+			return "[" + this.getDesc(t.getType());
+		} else if(tree instanceof IntersectionTypeTree t) {
+			return "[" + this.getDesc(t.getBounds().get(0));
+		} else if(tree instanceof TypeParameterTree t) {
+			return "[" + this.getDesc(t.getBounds().get(0));
+		} else if(tree instanceof UnionTypeTree t) {
+			return "[" + this.getDesc(t.getTypeAlternatives().get(0));
 		} else {
 			throw new UnsupportedOperationException(tree.getClass() + " " + tree);
 		}
 	}
 
-	public static Tree getMethodName(ExpressionTree element) {
-		if(element instanceof IdentifierTree idTree) {
-			return idTree;
-		} else if(element instanceof NewClassTree t) {
-			return t.getIdentifier();
-		} else {
-			return getMethodName(((MemberSelectTree)element).getExpression());
-		}
-	}
-
-	public static String resolveInternalName(TypeElement element) {
-		return element.getQualifiedName().toString().replace('.', '/'); // todo resolution n shit
-	}
-
-	public static String getDesc(ExecutableElement method) {
-		StringBuilder builder = new StringBuilder("(");
-		for(VariableElement param : method.getParameters()) {
-			builder.append(getDesc(param.asType()));
-		}
-		builder.append(')');
-		builder.append(getDesc(method.getReturnType()));
-		return builder.toString();
-	}
-
-	public static String getDesc(TypeMirror mirror) {
-		if(mirror instanceof TypeVariable variable) {
-			return getDesc(variable.getUpperBound());
-		} else if(mirror instanceof IntersectionType intersection) {
-			return getDesc(intersection.getBounds().get(0));
-		}
-
-		return getDesc_(mirror.getKind(), mirror);
-	}
-
-	private static String getDesc_(TypeKind kind, TypeMirror mirror) {
-		return switch(kind) {
-			case ARRAY -> '[' + getDesc(((ArrayType) mirror).getComponentType());
-			case INT -> "I";
-			case BYTE -> "B";
-			case CHAR -> "C";
-			case LONG -> "J";
-			case VOID -> "V";
-			case FLOAT -> "F";
-			case SHORT -> "S";
-			case NULL -> "Lnull;";
-			case DOUBLE -> "D";
-			case BOOLEAN -> "Z";
-			// we do a little trolling
-			case DECLARED -> {
-				String str = mirror.toString();
-				if(str.isBlank()) {
-					throw new IllegalArgumentException(mirror + " unable to be resolved");
-				}
-				yield 'L' + str.replaceAll("<.*", "") + ';';
-			}
-			default -> throw new IllegalArgumentException("wat " + mirror.getKind());
-		};
-	}
-
-	private static final String ANON_HEADER = "<anonymous ";
-	public static String getClassName(Element element) {
+	public static String getInternalName(Element element) {
 		Element e = element.getEnclosingElement();
 		String name = element.toString();
 		if(e instanceof TypeElement) {
 			int index = name.lastIndexOf('.');
-			return getClassName(e) + '$' + name.substring(index + 1);
+			return getInternalName(e) + '$' + name.substring(index + 1);
 		}
 		if(name.startsWith(ANON_HEADER)) {
-			return name.substring(ANON_HEADER.length(), name.length() - 1);
+			name = name.substring(ANON_HEADER.length(), name.length() - 1);
 		}
-		return name;
+		return name.replace('.', '/');
+	}
+
+	public static Renamable getName(ExpressionTree tree) {
+		if(tree instanceof IdentifierTree t) {
+			String name = t.getName().toString();
+			if(name.equals("super")) { // super constructor call, can't be remapped cus it's a keyword obviously
+				return null;
+			}
+			return new Renamable(tree, name, true);
+		} else if(tree instanceof MemberSelectTree t) {
+			String name = t.getIdentifier().toString();
+			return new Renamable(t.getExpression(), name, false);
+		} else {
+			throw new UnsupportedOperationException(tree + "");
+		}
+	}
+
+	record Renamable(Tree tree, String name, boolean full) {
+		int getFrom(JCTree.JCCompilationUnit t) {
+			JCTree internal = (JCTree) tree;
+			return full ? internal.getStartPosition() : internal.getEndPosition(t.endPositions);
+		}
+		int getTo(JCTree.JCCompilationUnit t) {
+			JCTree internal = (JCTree) tree;
+			return full ? internal.getEndPosition(t.endPositions) : -1;
+		}
 	}
 }

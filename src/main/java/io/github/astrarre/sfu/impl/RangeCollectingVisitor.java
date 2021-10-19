@@ -10,7 +10,7 @@ import javax.lang.model.element.VariableElement;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
-import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
@@ -26,73 +26,94 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 	public final List<MemberRange> members = new ArrayList<>();
 	public final List<TypeRange> types = new ArrayList<>();
 	final Trees trees;
+	final TypeUtil util;
+	boolean methodLock = true;
 	private JCTree.JCCompilationUnit root;
 	private String currentName;
 
 	public RangeCollectingVisitor(Trees trees) {
 		this.trees = trees;
+		this.util = new TypeUtil(trees);
 	}
 
 	@Override
 	public Void visitCompilationUnit(CompilationUnitTree node, Void unused) {
 		this.root = (JCTree.JCCompilationUnit) node;
-
+		this.util.unitTree = node;
 		return super.visitCompilationUnit(node, unused);
 	}
 
 	@Override
 	public Void visitClass(ClassTree node, Void unused) {
 		TreePath path = this.trees.getPath(this.root, node);
-		this.currentName = TypeUtil.getClassName(this.trees.getElement(path));
+		String currentName = TypeUtil.getInternalName(this.trees.getElement(path));
 
 		for(Tree member : node.getMembers()) {
 			if(member instanceof VariableTree v) {
-				JCTree jc = (JCTree) v.getType();
+				JCTree jc = (JCTree) v.getType(); // wait no this wont work, fuck, only really works for single variable declarations
 				MemberRange e = new MemberRange(jc.getEndPosition(this.root.endPositions),
 						-1,
-						this.currentName,
-						v.getName().toString(),
-						TypeUtil.getInternalName(v.getType()),
+						currentName,
+						v.getName().toString(), this.util.getDesc(v.getType()),
 						false);
 				this.members.add(e);
 			}
 		}
 
-		return super.visitClass(node, unused);
+		String oldName = this.currentName;
+		this.currentName = currentName;
+		super.visitClass(node, unused);
+		this.currentName = oldName;
+		return null;
 	}
 
 	@Override
 	public Void visitMethod(MethodTree node, Void unused) {
-		JCTree jc = (JCTree) v.getType();
+		Tree endTree = node.getReturnType();
+		if(endTree == null) {
+			endTree = node.getModifiers();
+		}
+
+		JCTree jc = (JCTree) endTree;
 		MemberRange e = new MemberRange(jc.getEndPosition(this.root.endPositions),
 				-1,
 				this.currentName,
-				node.getName().toString(),
-				TypeUtil.getInternalName(v.getType()),
-				false);
+				node.getName().toString(), this.util.getDesc(node),
+				true);
 		this.members.add(e);
 		return super.visitMethod(node, unused);
 	}
 
 	@Override
 	public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
-		ExecutableElement method = (ExecutableElement) TreeInfo.symbol((JCTree) node.getMethodSelect());
-		TypeElement invokedClass = (TypeElement) method.getEnclosingElement();
-		String owner = TypeUtil.resolveInternalName(invokedClass), name = method.getSimpleName().toString();
-		var tree = TypeUtil.getMethodName(node.getMethodSelect());
-		JCTree jc = (JCTree) tree;
-		MemberRange e = new MemberRange(jc.getStartPosition(),
-				jc.getEndPosition(this.root.endPositions),
-				owner,
-				name,
-				TypeUtil.getDesc(method),
-				true);
-		this.members.add(e);
-		return super.visitMethodInvocation(node, unused);
+		ExpressionTree select = node.getMethodSelect();
+		TypeUtil.Renamable renamable = TypeUtil.getName(select);
+		if(renamable != null) {
+			ExecutableElement method = (ExecutableElement) TreeInfo.symbol((JCTree) select);
+			TypeElement invokedClass = (TypeElement) method.getEnclosingElement();
+			String owner = TypeUtil.getInternalName(invokedClass);
+			MemberRange e = new MemberRange(renamable.getFrom(this.root),
+					renamable.getTo(this.root),
+					owner,
+					renamable.name(),
+					DescVisitor.getDesc(method.asType()),
+					true);
+			this.members.add(e);
+		}
+		this.scan(node.getTypeArguments(), null);
+		this.methodLock = true;
+		this.scan(node.getMethodSelect(), null); // already processed
+		this.methodLock = false;
+		this.scan(node.getArguments(), null);
+		return null;
 	}
+
 
 	@Override
 	public Void visitMemberSelect(MemberSelectTree node, Void unused) {
+		if(this.methodLock) {
+			return null;
+		}
 		TreePath path = this.trees.getPath(this.root, node);
 		Element element = this.trees.getElement(path);
 		if(element instanceof VariableElement v) {
@@ -101,7 +122,7 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 					jc.getEndPosition(this.root.endPositions),
 					this.currentName,
 					node.getIdentifier().toString(),
-					TypeUtil.getDesc(v.asType()),
+					DescVisitor.getDesc(v.asType()),
 					false);
 			this.members.add(e);
 		}

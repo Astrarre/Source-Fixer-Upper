@@ -34,6 +34,7 @@ public class Remapper {
 
 	public void apply() {
 		for(RangeCollectingVisitor.MemberRange member : this.members) {
+			System.out.println(member.owner() + "::" + member.name() + member.desc());
 			String name = member.name();
 			var mapping = member.isMethod() ? this.view.getMethod(member.owner(), name, member.desc(), this.fromIndex) :
 			              this.view.getField(member.owner(), name, member.desc(), this.fromIndex);
@@ -42,11 +43,11 @@ public class Remapper {
 				String dst = mapping.getDstName(this.toIndex);
 				int from = member.from(), to = member.to();
 				if(member.to() == -1) {
-					from = this.findStart(from, name);
+					from = this.findStart(from, name, false);
 					to = name.length() + from;
 				}
 				if(member.from() == -1) {
-					to = this.findEnd(to, name);
+					to = this.findEnd(to, name, false);
 					from = to - name.length();
 				}
 
@@ -56,10 +57,10 @@ public class Remapper {
 	}
 
 	// starts at ??? -> <first id>
-	public int findEnd(int end, String name) {
+	public int findEnd(int end, String name, boolean type) {
 		for(int i = end - 1; i >= 0; i--) {
 			char at = this.builder.charAt(i);
-			if(Character.isWhitespace(at)) {}
+			if(Character.isWhitespace(at) || (!type && at == '.')) {}
 			else if(at == '/' && this.builder.charAt(i-1) == '*') {
 				i = reqPos(this.builder.lastIndexOf("/*", i), name)-1;
 			} else {
@@ -77,7 +78,7 @@ public class Remapper {
 	}
 
 	// starts at '0' -> <first id>
-	public int findStart(int start, String name) {
+	public int findStart(int start, String name, boolean type) {
 		for(int i = start; i < this.builder.length(); i++) {
 			char at = this.builder.charAt(i);
 			if(Character.isWhitespace(at)) {}
