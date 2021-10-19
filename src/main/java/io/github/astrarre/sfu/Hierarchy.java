@@ -2,7 +2,7 @@ package io.github.astrarre.sfu;
 
 import java.util.Collection;
 
-public interface Context {
+public interface Hierarchy {
 
     String getSuperclass(String type);
 

@@ -42,7 +42,7 @@ public interface SourceFixerUpper {
      * @param context The context to use for member resolving
      * @return This
      */
-    SourceFixerUpper withContext(Context context);
+    SourceFixerUpper withContext(Hierarchy context);
 
     /**
      * Reconfigures this instance to use the given output

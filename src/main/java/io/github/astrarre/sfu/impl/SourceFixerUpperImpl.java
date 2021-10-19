@@ -3,6 +3,7 @@ package io.github.astrarre.sfu.impl;
 import io.github.astrarre.sfu.*;
 import net.fabricmc.mappingio.tree.MappingTreeView;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -17,7 +18,7 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
     private final List<CompiledSourceEntry> classpath = new ArrayList<>();
     private Executor executor = ForkJoinPool.commonPool();
     private Mappings mappings;
-    private Context context;
+    private Hierarchy context;
     private Output output;
 
     @Override
@@ -33,8 +34,8 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
     }
 
     @Override
-    public SourceFixerUpper withContext(Context context) {
-        this.context = context;
+    public SourceFixerUpper withContext(Hierarchy hierarchy) {
+        this.context = hierarchy;
         return this;
     }
 
@@ -69,6 +70,13 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
         Objects.requireNonNull(context, "Context cannot be null");
         Objects.requireNonNull(output, "Output cannot be null");
 
-        return null;
+        return CompletableFuture.supplyAsync(() -> null, executor)
+                .thenCompose($ -> {
+                    try {
+                        return new SFUData(executor, mappings, context, output, inputs, sourcepath, classpath).process();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 }
