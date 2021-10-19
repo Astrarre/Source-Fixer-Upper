@@ -12,7 +12,7 @@ public interface SourceFixerUpper {
     /**
      * Creates a {@link SourceFixerUpper} only configured with the {@link ForkJoinPool#commonPool() common pool}
      *
-     * @return a new {@link SourceFixerUpper}
+     * @return A new {@link SourceFixerUpper}
      */
     static SourceFixerUpper create() {
         return new SourceFixerUpperImpl();
@@ -21,8 +21,8 @@ public interface SourceFixerUpper {
     /**
      * Reconfigures this instance to use the given executor
      *
-     * @param executor the executor to use for multithreading
-     * @return this
+     * @param executor The executor to use for multithreading
+     * @return This
      */
     SourceFixerUpper withExecutor(Executor executor);
 
@@ -32,7 +32,7 @@ public interface SourceFixerUpper {
      * @param tree The mapping tree to use
      * @param from The source namespace
      * @param to   The destination namespace
-     * @return this
+     * @return This
      */
     SourceFixerUpper withMappings(MappingTreeView tree, String from, String to);
 
@@ -40,7 +40,7 @@ public interface SourceFixerUpper {
      * Reconfigures this instance to use the given context
      *
      * @param context The context to use for member resolving
-     * @return this
+     * @return This
      */
     SourceFixerUpper withContext(Context context);
 
@@ -48,7 +48,7 @@ public interface SourceFixerUpper {
      * Reconfigures this instance to use the given output
      *
      * @param output The sink to write processed files
-     * @return this
+     * @return This
      */
     SourceFixerUpper withOutput(Output output);
 
@@ -56,9 +56,25 @@ public interface SourceFixerUpper {
      * Adds a source input
      *
      * @param sourceEntry Source entry to add
-     * @return this
+     * @return This
      */
     SourceFixerUpper input(SourceEntry sourceEntry);
+
+    /**
+     * Adds a source path entry
+     *
+     * @param sourceEntry Source path entry to add
+     * @return This
+     */
+    SourceFixerUpper sourcepath(SourceEntry sourceEntry);
+
+    /**
+     * Adds a compiled classpath entry
+     *
+     * @param compiledSourceEntry A raw class file to add
+     * @return This
+     */
+    SourceFixerUpper classpath(CompiledSourceEntry compiledSourceEntry);
 
     /**
      * Creates a future which will start processing

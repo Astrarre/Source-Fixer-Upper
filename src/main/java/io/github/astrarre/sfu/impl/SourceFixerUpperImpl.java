@@ -1,9 +1,6 @@
 package io.github.astrarre.sfu.impl;
 
-import io.github.astrarre.sfu.Context;
-import io.github.astrarre.sfu.Output;
-import io.github.astrarre.sfu.SourceEntry;
-import io.github.astrarre.sfu.SourceFixerUpper;
+import io.github.astrarre.sfu.*;
 import net.fabricmc.mappingio.tree.MappingTreeView;
 
 import java.util.ArrayList;
@@ -16,6 +13,8 @@ import java.util.concurrent.ForkJoinPool;
 public class SourceFixerUpperImpl implements SourceFixerUpper {
 
     private final List<SourceEntry> inputs = new ArrayList<>();
+    private final List<SourceEntry> sourcepath = new ArrayList<>();
+    private final List<CompiledSourceEntry> classpath = new ArrayList<>();
     private Executor executor = ForkJoinPool.commonPool();
     private Mappings mappings;
     private Context context;
@@ -48,6 +47,18 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
     @Override
     public SourceFixerUpper input(SourceEntry sourceEntry) {
         inputs.add(sourceEntry);
+        return this;
+    }
+
+    @Override
+    public SourceFixerUpper sourcepath(SourceEntry sourceEntry) {
+        sourcepath.add(sourceEntry);
+        return this;
+    }
+
+    @Override
+    public SourceFixerUpper classpath(CompiledSourceEntry compiledSourceEntry) {
+        classpath.add(compiledSourceEntry);
         return this;
     }
 
