@@ -13,6 +13,7 @@ import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
+import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
@@ -60,6 +61,18 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 		return super.visitClass(node, unused);
 	}
 
+	@Override
+	public Void visitMethod(MethodTree node, Void unused) {
+		JCTree jc = (JCTree) v.getType();
+		MemberRange e = new MemberRange(jc.getEndPosition(this.root.endPositions),
+				-1,
+				this.currentName,
+				node.getName().toString(),
+				TypeUtil.getInternalName(v.getType()),
+				false);
+		this.members.add(e);
+		return super.visitMethod(node, unused);
+	}
 
 	@Override
 	public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {

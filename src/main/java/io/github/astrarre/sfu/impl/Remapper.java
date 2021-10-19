@@ -34,20 +34,59 @@ public class Remapper {
 
 	public void apply() {
 		for(RangeCollectingVisitor.MemberRange member : this.members) {
-			var mapping = this.view.getMethod(member.owner(), member.name(), member.desc(), this.fromIndex);
+			String name = member.name();
+			var mapping = member.isMethod() ? this.view.getMethod(member.owner(), name, member.desc(), this.fromIndex) :
+			              this.view.getField(member.owner(), name, member.desc(), this.fromIndex);
 
 			if(mapping != null) {
 				String dst = mapping.getDstName(this.toIndex);
 				int from = member.from(), to = member.to();
 				if(member.to() == -1) {
-					// requires advanced checking
+					from = this.findStart(from, name);
+					to = name.length() + from;
 				}
 				if(member.from() == -1) {
-					from = this.builder.lastIndexOf(member.name(), to);
+					to = this.findEnd(to, name);
+					from = to - name.length();
 				}
 
 				this.builder.replace(from, to, dst);
 			}
 		}
+	}
+
+	// starts at ??? -> <first id>
+	public int findEnd(int end, String name) {
+		for(int i = end - 1; i >= 0; i--) {
+			char at = this.builder.charAt(i);
+			if(Character.isWhitespace(at)) {}
+			else if(at == '/' && this.builder.charAt(i-1) == '*') {
+				i = reqPos(this.builder.lastIndexOf("/*", i), name)-1;
+			} else {
+				return i;
+			}
+		}
+		throw new IllegalStateException("Unable to find start of token " + name);
+	}
+
+	static int reqPos(int i, String name) {
+		if(i == -1) {
+			throw new IllegalStateException("Unable to find range of token " + name);
+		}
+		return i;
+	}
+
+	// starts at '0' -> <first id>
+	public int findStart(int start, String name) {
+		for(int i = start; i < this.builder.length(); i++) {
+			char at = this.builder.charAt(i);
+			if(Character.isWhitespace(at)) {}
+			else if(at == '/' && this.builder.charAt(i+1) == '*') {
+				i = reqPos(this.builder.indexOf("*/", i), name)+2;
+			} else {
+				return i;
+			}
+		}
+		throw new IllegalStateException("Unable to find end of token " + name);
 	}
 }
