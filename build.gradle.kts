@@ -40,7 +40,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_16
 
     withSourcesJar()
-    withJavadocJar()
+    // withJavadocJar()
 }
 
 val arguments = run {

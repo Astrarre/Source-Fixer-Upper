@@ -4,7 +4,7 @@ on:
   - push
 
 jobs:
-  build:
+  test:
     if: "! contains(toJSON(github.event.commits.*.message), '[ci skip]')"
     runs-on: ubuntu-20.04
     steps:

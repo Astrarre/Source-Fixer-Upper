@@ -37,14 +37,6 @@ public interface SourceFixerUpper {
     SourceFixerUpper withMappings(MappingTreeView tree, String from, String to);
 
     /**
-     * Reconfigures this instance to use the given hierarchy
-     *
-     * @param hierarchy The hierarchy to use for member resolving
-     * @return This
-     */
-    SourceFixerUpper withHierarchy(Hierarchy hierarchy);
-
-    /**
      * Reconfigures this instance to use the given output
      *
      * @param output The sink to write processed files

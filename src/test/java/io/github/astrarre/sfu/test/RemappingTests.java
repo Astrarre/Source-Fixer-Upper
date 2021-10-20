@@ -38,7 +38,6 @@ public class RemappingTests {
 
             SourceFixerUpper sfu = SourceFixerUpper.create()
                     .withMappings(tree, "a", "b")
-                    .withHierarchy(new NullHierarchy())
                     .withOutput(fileName -> {
                         AssertingWriter writer = new AssertingWriter(test.resolve(fileName));
                         writers.add(writer);

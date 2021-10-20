@@ -6,7 +6,6 @@ import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.util.Context;
 import io.github.astrarre.sfu.CompiledSourceEntry;
-import io.github.astrarre.sfu.Hierarchy;
 import io.github.astrarre.sfu.Output;
 import io.github.astrarre.sfu.SourceEntry;
 
@@ -22,7 +21,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-record SFUData(Executor executor, Mappings mappings, Hierarchy hierarchy, Output output, List<SourceEntry> inputs,
+record SFUData(Executor executor, Mappings mappings, Output output, List<SourceEntry> inputs,
                List<SourceEntry> sourcepath, List<CompiledSourceEntry> classpath) {
 
     CompletableFuture<?> process() throws IOException {
