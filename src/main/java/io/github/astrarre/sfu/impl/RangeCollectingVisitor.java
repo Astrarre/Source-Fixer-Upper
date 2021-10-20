@@ -7,10 +7,13 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeMirror;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
+import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.ImportTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
@@ -25,6 +28,7 @@ import com.sun.tools.javac.tree.TreeInfo;
 public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 	public final List<MemberRange> members = new ArrayList<>();
 	public final List<TypeRange> types = new ArrayList<>();
+	public final List<ImportRange> imports = new ArrayList<>();
 	final Trees trees;
 	final TypeUtil util;
 	boolean methodLock = true;
@@ -34,6 +38,19 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 	public RangeCollectingVisitor(Trees trees) {
 		this.trees = trees;
 		this.util = new TypeUtil(trees);
+	}
+
+	@Override
+	public Void visitImport(ImportTree node, Void unused) {
+		Tree tree = node.getQualifiedIdentifier();
+		JCTree internalTree = (JCTree) tree;
+		ImportRange range = new ImportRange(
+				internalTree.getStartPosition(),
+				internalTree.getEndPosition(this.root.endPositions),
+				tree.toString(),
+				node.isStatic());
+		this.imports.add(range);
+		return super.visitImport(node, unused);
 	}
 
 	@Override
@@ -67,7 +84,25 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 		return null;
 	}
 
-	@Override
+    // todo this is a horrifying way of resolving classes
+    @Override
+    public Void visitIdentifier(IdentifierTree node, Void unused) {
+        TreePath path = this.trees.getPath(this.root, node);
+        TypeMirror mirror;
+        try {
+            mirror = this.trees.getTypeMirror(path);
+        } catch(IllegalArgumentException | NullPointerException e) {
+            mirror = null;
+        }
+        if(mirror != null) {
+            JCTree tree = (JCTree) node;
+            this.types.add(new TypeRange(tree.getStartPosition(), tree.getEndPosition(this.root.endPositions), DescVisitor.getDesc(mirror), false));
+        }
+
+        return super.visitIdentifier(node, unused);
+    }
+
+    @Override
 	public Void visitMethod(MethodTree node, Void unused) {
 		Tree endTree = node.getReturnType();
 		if(endTree == null) {
@@ -140,5 +175,6 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 		}
 	}
 
-	public record TypeRange(int from, int to, String owner) {}
+	public record TypeRange(int from, int to, String owner, boolean isFullyQualified) {}
+	public record ImportRange(int from, int to, String importString, boolean isStatic) {}
 }

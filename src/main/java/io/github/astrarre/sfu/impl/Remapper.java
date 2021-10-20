@@ -28,13 +28,14 @@ public class Remapper {
 		this.view = view;
 		this.from = from;
 		this.to = to;
+		// todo merge into one list before sorting
+		// todo resolve from index for proper sorting
 		this.members.sort(Comparator.comparingInt(RangeCollectingVisitor.MemberRange::from).reversed());
 		this.types.sort(Comparator.comparingInt(RangeCollectingVisitor.TypeRange::from).reversed());
 	}
 
 	public void apply() {
 		for(RangeCollectingVisitor.MemberRange member : this.members) {
-			System.out.println(member.owner() + "::" + member.name() + member.desc());
 			String name = member.name();
 			var mapping = member.isMethod() ? this.view.getMethod(member.owner(), name, member.desc(), this.fromIndex) :
 			              this.view.getField(member.owner(), name, member.desc(), this.fromIndex);

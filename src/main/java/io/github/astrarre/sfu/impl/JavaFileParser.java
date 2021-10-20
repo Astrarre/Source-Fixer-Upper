@@ -38,13 +38,11 @@ public class JavaFileParser {
 
 	private final JavacFileManager jcFileManager;
 	private final JavaCompiler javac;
-	private final Check check;
 
 	public JavaFileParser() {
 		Context context = new Context();
 		jcFileManager = new JavacFileManager(context, true, Charset.defaultCharset());
 		javac = JavacTool.create();
-		check = Check.instance(context);
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -78,7 +76,6 @@ public class JavaFileParser {
 				Tiny1Reader.read(Files.newBufferedReader(Path.of("test.tiny")), tree);
 				Remapper remapper = new Remapper(builder, jsv.members, jsv.types, tree, "from", "to");
 				remapper.apply();
-				System.out.println(builder);
 			}
 
 			/* Get the parsed out method list. */

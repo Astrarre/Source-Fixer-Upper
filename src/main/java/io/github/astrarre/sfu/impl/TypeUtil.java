@@ -59,11 +59,11 @@ public class TypeUtil {
 		} else if(tree instanceof ArrayTypeTree t) {
 			return "[" + this.getDesc(t.getType());
 		} else if(tree instanceof IntersectionTypeTree t) {
-			return "[" + this.getDesc(t.getBounds().get(0));
+			return this.getDesc(t.getBounds().get(0));
 		} else if(tree instanceof TypeParameterTree t) {
-			return "[" + this.getDesc(t.getBounds().get(0));
+			return this.getDesc(t.getBounds().get(0));
 		} else if(tree instanceof UnionTypeTree t) {
-			return "[" + this.getDesc(t.getTypeAlternatives().get(0));
+			return this.getDesc(t.getTypeAlternatives().get(0));
 		} else {
 			throw new UnsupportedOperationException(tree.getClass() + " " + tree);
 		}
