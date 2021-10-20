@@ -85,6 +85,12 @@ record SFUData(Executor executor, Mappings mappings, Output output, List<SourceE
         }
 
         @Override
+        public boolean isNameCompatible(String simpleName, Kind kind) {
+            String baseName = simpleName + kind.extension;
+            return kind.equals(getKind()) && (baseName.equals(getName()) || getName().endsWith("/" + baseName));
+        }
+
+        @Override
         public InputStream openInputStream() {
             return new InputStream() {
                 int position, mark;
