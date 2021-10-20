@@ -9,16 +9,25 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 
+import com.sun.source.tree.AnnotatedTypeTree;
+import com.sun.source.tree.AnnotationTree;
+import com.sun.source.tree.ArrayTypeTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.ImportTree;
+import com.sun.source.tree.InstanceOfTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.NewArrayTree;
+import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.TypeCastTree;
+import com.sun.source.tree.TypeParameterTree;
 import com.sun.source.tree.VariableTree;
+import com.sun.source.tree.WildcardTree;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreeScanner;
 import com.sun.source.util.Trees;
@@ -121,7 +130,7 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 
 	@Override
 	public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
-		ExpressionTree select = node.getMethodSelect();
+		ExpressionTree select = node.getMethodSelect(); //
 		TypeUtil.Renamable renamable = TypeUtil.getName(select);
 		if(renamable != null) {
 			ExecutableElement method = (ExecutableElement) TreeInfo.symbol((JCTree) select);
@@ -147,8 +156,11 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 	@Override
 	public Void visitMemberSelect(MemberSelectTree node, Void unused) {
 		if(this.methodLock) {
+            // Class.staticMethod & Outer.this.instanceMethod can be calculated here, maybe store if method is static as heuristic?
 			return null;
 		}
+        // todo handle Class.staticField and Outer.this.instanceField
+
 		TreePath path = this.trees.getPath(this.root, node);
 		Element element = this.trees.getElement(path);
 		if(element instanceof VariableElement v) {
@@ -164,7 +176,71 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
 		return super.visitMemberSelect(node, unused);
 	}
 
-	public record MemberRange(int from, int to, String owner, String name, String desc, boolean isMethod) {
+    @Override
+    public Void visitAnnotatedType(AnnotatedTypeTree node, Void unused) {
+        this.addTypeRange(node.getUnderlyingType());
+        return super.visitAnnotatedType(node, unused);
+    }
+
+    @Override
+    public Void visitAnnotation(AnnotationTree node, Void unused) {
+        this.addTypeRange(node.getAnnotationType());
+        return super.visitAnnotation(node, unused);
+    }
+
+    @Override
+    public Void visitInstanceOf(InstanceOfTree node, Void unused) {
+        this.addTypeRange(node.getType());
+        return super.visitInstanceOf(node, unused);
+    }
+
+    @Override
+    public Void visitNewArray(NewArrayTree node, Void unused) {
+        this.addTypeRange(node.getType());
+        return super.visitNewArray(node, unused);
+    }
+
+    @Override
+    public Void visitNewClass(NewClassTree node, Void unused) {
+        this.addTypeRange(node.getIdentifier());
+        return super.visitNewClass(node, unused);
+    }
+
+    @Override
+    public Void visitTypeCast(TypeCastTree node, Void unused) {
+        this.addTypeRange(node.getType());
+        return super.visitTypeCast(node, unused);
+    }
+
+    @Override
+    public Void visitVariable(VariableTree node, Void unused) {
+        this.addTypeRange(node.getType());
+        return super.visitVariable(node, unused);
+    }
+
+    @Override
+    public Void visitTypeParameter(TypeParameterTree node, Void unused) {
+        for(Tree bound : node.getBounds()) {
+            this.addTypeRange(bound);
+        }
+        return super.visitTypeParameter(node, unused);
+    }
+
+    @Override
+    public Void visitWildcard(WildcardTree node, Void unused) {
+        this.addTypeRange(node.getBound());
+        return super.visitWildcard(node, unused);
+    }
+
+    void addTypeRange(Tree tree) { // todo find "roots" (eg. array element types, each of the parameter types, so on so forth), maybe just skip them and visit?
+        if(tree == null) return;
+        JCTree internal = (JCTree) tree;
+        // todo test for full qualification
+        var e = new TypeRange(internal.getStartPosition(), internal.getEndPosition(this.root.endPositions), this.util.getDesc(tree), false);
+        this.types.add(e);
+    }
+
+    public record MemberRange(int from, int to, String owner, String name, String desc, boolean isMethod) {
 		public MemberRange(int from, int to, String owner, String name, String desc, boolean isMethod) {
 			this.from = from;
 			this.to = to;

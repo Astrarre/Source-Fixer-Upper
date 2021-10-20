@@ -58,7 +58,7 @@ public class JavaFileParser {
 		JavacTask jcTask = (JavacTask) javac.getTask(null,
 				jcFileManager,
 				null,
-				List.of("-s", Path.of("test").toAbsolutePath().toString()),
+				List.of(),
 				null,
 				javaFiles);
 		Trees trees = Trees.instance(jcTask);

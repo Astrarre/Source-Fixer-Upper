@@ -3,6 +3,7 @@ package io.github.astrarre.sfu.impl;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import net.fabricmc.mappingio.tree.MappingTreeView;
 
