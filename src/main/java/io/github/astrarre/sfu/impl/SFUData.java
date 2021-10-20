@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-record SFUData(Executor executor, Mappings mappings, Hierarchy context, Output output, List<SourceEntry> inputs,
+record SFUData(Executor executor, Mappings mappings, Hierarchy hierarchy, Output output, List<SourceEntry> inputs,
                List<SourceEntry> sourcepath, List<CompiledSourceEntry> classpath) {
 
     CompletableFuture<?> process() throws IOException {
@@ -37,15 +37,15 @@ record SFUData(Executor executor, Mappings mappings, Hierarchy context, Output o
         List<JavaFileObject> classpath = new ArrayList<>();
 
         for (SourceEntry input : inputs) {
-            sources.add(new VirtualFileObject(input.content(), input.charset(), JavaFileObject.Kind.SOURCE));
+            sources.add(new VirtualFileObject(input.pathName(), input.content(), input.charset(), JavaFileObject.Kind.SOURCE));
         }
 
         for (SourceEntry input : this.sourcepath) {
-            sourcepath.add(new VirtualFileObject(input.content(), input.charset(), JavaFileObject.Kind.SOURCE));
+            sourcepath.add(new VirtualFileObject(input.pathName(), input.content(), input.charset(), JavaFileObject.Kind.SOURCE));
         }
 
         for (CompiledSourceEntry input : this.classpath) {
-            classpath.add(new VirtualFileObject(input.content(), null, JavaFileObject.Kind.CLASS));
+            classpath.add(new VirtualFileObject(input.pathName(), input.content(), null, JavaFileObject.Kind.CLASS));
         }
 
         JavacTask task = javac.getTask(null, manager, null, null, null, sources);
@@ -69,13 +69,20 @@ record SFUData(Executor executor, Mappings mappings, Hierarchy context, Output o
     private static class VirtualFileObject extends SimpleJavaFileObject {
 
         private static int counter = 0;
+        private final String name;
         private final ByteBuffer content;
         private final Charset charset;
 
-        protected VirtualFileObject(ByteBuffer content, Charset charset, Kind kind) {
+        protected VirtualFileObject(String name, ByteBuffer content, Charset charset, Kind kind) {
             super(URI.create("virtual://" + counter++ + kind.extension), kind);
+            this.name = name;
             this.content = content;
             this.charset = charset;
+        }
+
+        @Override
+        public String getName() {
+            return name;
         }
 
         @Override

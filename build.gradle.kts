@@ -21,6 +21,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter", "junit-jupiter-api", "5.8.1")
     testRuntimeOnly("org.junit.jupiter", "junit-jupiter-engine")
+    testRuntimeOnly("org.junit.platform", "junit-platform-launcher")
 }
 
 sourceSets {
@@ -42,34 +43,37 @@ java {
     withJavadocJar()
 }
 
+val arguments = run {
+    val exports = listOf(
+        "jdk.compiler/com.sun.tools.javac.api",
+        "jdk.compiler/com.sun.tools.javac.file",
+        "jdk.compiler/com.sun.tools.javac.tree",
+        "jdk.compiler/com.sun.tools.javac.util",
+        "jdk.compiler/com.sun.tools.javac.comp",
+        "jdk.javadoc/com.sun.tools.javac.parser",
+        "jdk.javadoc/jdk.javadoc.internal.tool",
+    )
+
+    val arguments = exports.flatMap { listOf("--add-exports", "$it=io.github.astrarre.sfu") }
+    println("Add to your IDE run configs: ${arguments.joinToString(" ")}")
+    arguments
+}
+
 tasks {
     withType<JavaCompile> {
         options.encoding = "UTF-8"
+        options.compilerArgs.addAll(arguments)
         // Not compatible with --add-exports
         // options.release.set(16)
     }
 
     withType<Test> {
         useJUnitPlatform()
+        jvmArgs(arguments)
     }
 
     withType<Javadoc> {
         (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
-    }
-
-    compileJava {
-        val exports = listOf(
-            "jdk.compiler/com.sun.tools.javac.api",
-            "jdk.compiler/com.sun.tools.javac.file",
-            "jdk.compiler/com.sun.tools.javac.tree",
-            "jdk.compiler/com.sun.tools.javac.util",
-            "jdk.compiler/com.sun.tools.javac.comp",
-            "jdk.javadoc/com.sun.tools.javac.parser",
-            "jdk.javadoc/jdk.javadoc.internal.tool",
-        )
-
-        options.compilerArgs.addAll(exports.flatMap { listOf("--add-exports", "$it=io.github.astrarre.sfu") })
-        println(options.compilerArgs.joinToString(separator = " "))
     }
 }
 

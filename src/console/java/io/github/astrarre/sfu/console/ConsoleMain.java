@@ -7,7 +7,7 @@ public class ConsoleMain {
     public static void main(String[] args) {
         SourceFixerUpper.create()
                 .withMappings(null, "a", "a")
-                .withContext(null)
+                .withHierarchy(null)
                 .withOutput(null)
                 .input(null)
                 .start()

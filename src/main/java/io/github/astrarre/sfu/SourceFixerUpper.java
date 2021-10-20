@@ -37,12 +37,12 @@ public interface SourceFixerUpper {
     SourceFixerUpper withMappings(MappingTreeView tree, String from, String to);
 
     /**
-     * Reconfigures this instance to use the given context
+     * Reconfigures this instance to use the given hierarchy
      *
-     * @param context The context to use for member resolving
+     * @param hierarchy The hierarchy to use for member resolving
      * @return This
      */
-    SourceFixerUpper withContext(Hierarchy context);
+    SourceFixerUpper withHierarchy(Hierarchy hierarchy);
 
     /**
      * Reconfigures this instance to use the given output

@@ -18,7 +18,7 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
     private final List<CompiledSourceEntry> classpath = new ArrayList<>();
     private Executor executor = ForkJoinPool.commonPool();
     private Mappings mappings;
-    private Hierarchy context;
+    private Hierarchy hierarchy;
     private Output output;
 
     @Override
@@ -34,8 +34,8 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
     }
 
     @Override
-    public SourceFixerUpper withContext(Hierarchy hierarchy) {
-        this.context = hierarchy;
+    public SourceFixerUpper withHierarchy(Hierarchy hierarchy) {
+        this.hierarchy = hierarchy;
         return this;
     }
 
@@ -67,13 +67,13 @@ public class SourceFixerUpperImpl implements SourceFixerUpper {
     public CompletableFuture<?> start() {
         Objects.requireNonNull(executor, "Executor cannot be null");
         Objects.requireNonNull(mappings, "Mappings cannot be null");
-        Objects.requireNonNull(context, "Context cannot be null");
+        Objects.requireNonNull(hierarchy, "Hierarchy cannot be null");
         Objects.requireNonNull(output, "Output cannot be null");
 
         return CompletableFuture.supplyAsync(() -> null, executor)
                 .thenCompose($ -> {
                     try {
-                        return new SFUData(executor, mappings, context, output, inputs, sourcepath, classpath).process();
+                        return new SFUData(executor, mappings, hierarchy, output, inputs, sourcepath, classpath).process();
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

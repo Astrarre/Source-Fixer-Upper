@@ -22,6 +22,18 @@ public class SourceFixerUpperUtils {
     }
 
     /**
+     * Walks the given path as a standard jar, ignoring source files
+     *
+     * @param sfu     Instance to configure
+     * @param path    Root directory to add
+     * @param charset Charset to use for sources
+     * @throws IOException If a file could not be read, a directory iterated, or similar error occurs
+     */
+    public static void walkStandardSources(SourceFixerUpper sfu, Path path, Charset charset) throws IOException {
+        Files.walkFileTree(path, new InnerVisitor(path, sfu, false, false, charset, 0));
+    }
+
+    /**
      * Walks the given path and automatically add entries
      *
      * @param sfu          Instance to configure
@@ -35,24 +47,22 @@ public class SourceFixerUpperUtils {
     public static void walk(SourceFixerUpper sfu, Path path, Charset charset, boolean classes, int nestingLevel) throws IOException {
         // TODO: Handle multi-release jars
         //  Idk how to implement it in a performant way, but then again this isn't exactly performant, is it?
-        Files.walkFileTree(path, new InnerVisitor(path, sfu, classes, charset, nestingLevel));
+        Files.walkFileTree(path, new InnerVisitor(path, sfu, true, classes, charset, nestingLevel));
     }
 
     private static class InnerVisitor extends SimpleFileVisitor<Path> {
 
         private final Path root;
         private final SourceFixerUpper sfu;
-        private final PathMatcher sourceMatcher;
-        private final PathMatcher compiledMatcher;
+        private final boolean sourcepath;
         private final boolean classes;
         private final Charset charset;
         private final int nestingLevel;
 
-        public InnerVisitor(Path root, SourceFixerUpper sfu, boolean classes, Charset charset, int nestingLevel) {
+        public InnerVisitor(Path root, SourceFixerUpper sfu, boolean sourcepath, boolean classes, Charset charset, int nestingLevel) {
             this.root = root;
             this.sfu = sfu;
-            this.sourceMatcher = root.getFileSystem().getPathMatcher("*.java");
-            this.compiledMatcher = root.getFileSystem().getPathMatcher("*.class");
+            this.sourcepath = sourcepath;
             this.classes = classes;
             this.charset = charset;
             this.nestingLevel = nestingLevel;
@@ -62,9 +72,15 @@ public class SourceFixerUpperUtils {
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
             String relative = root.relativize(file).toString();
 
-            if (charset != null && sourceMatcher.matches(file)) {
-                sfu.sourcepath(new SourceEntry(relative, ByteBuffer.wrap(Files.readAllBytes(file)), charset));
-            } else if (classes && compiledMatcher.matches(file)) {
+            if (charset != null && relative.endsWith(".java")) {
+                SourceEntry entry = new SourceEntry(relative, ByteBuffer.wrap(Files.readAllBytes(file)), charset);
+
+                if (sourcepath) {
+                    sfu.sourcepath(entry);
+                } else {
+                    sfu.input(entry);
+                }
+            } else if (classes && relative.endsWith(".class")) {
                 sfu.classpath(new CompiledSourceEntry(relative, ByteBuffer.wrap(Files.readAllBytes(file))));
             } else if (nestingLevel != 0) {
                 FileSystem inner = null;
@@ -77,7 +93,7 @@ public class SourceFixerUpperUtils {
                 if (inner != null) {
                     try (FileSystem $ = inner) {
                         for (Path root : $.getRootDirectories()) {
-                            Files.walkFileTree(root, new InnerVisitor(root, sfu, classes, charset, nestingLevel - 1));
+                            Files.walkFileTree(root, new InnerVisitor(root, sfu, sourcepath, classes, charset, nestingLevel - 1));
                         }
                     }
                 }

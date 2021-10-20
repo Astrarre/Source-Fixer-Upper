@@ -1,0 +1,4 @@
+tiny	2	0	a	b
+c	A	A
+	f	Ljava/lang/String;	field	modifiedField
+	f	Ljava/lang/String;	field2	modifiedField2
