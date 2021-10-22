@@ -2,10 +2,13 @@ plugins {
     `java-library`
     `maven-publish`
     signing
+    id("com.github.johnrengelman.shadow") version "7.1.0"
 }
 
 group = "io.github.astrarre"
 version = "1.0.0-SNAPSHOT"
+
+val shadowJavac by configurations.registering
 
 repositories {
     mavenCentral()
@@ -18,6 +21,12 @@ repositories {
 
 dependencies {
     implementation("net.fabricmc", "mapping-io", "0.3.0")
+
+    // This doesn't work :suffer:
+    // "shadowJavac"(files(zipTree("D:\\Programs\\AdoptOpenJDK\\jdk-16.0.1.9-hotspot\\jmods\\jdk.compiler.jmod")))
+    // This works
+    // "shadowJavac"("net.fabricmc", "mapping-io", "0.3.0")
+    // How do I ziptree a single jmod file
 
     testImplementation("org.junit.jupiter", "junit-jupiter-api", "5.8.1")
     testRuntimeOnly("org.junit.jupiter", "junit-jupiter-engine")
@@ -75,12 +84,21 @@ tasks {
     withType<Javadoc> {
         (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
     }
+
+    shadowJar {
+        configurations = listOf(shadowJavac.get())
+        relocate("com.sun", "io.github.astrarre.sfu.shadow.com.sun")
+    }
 }
 
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
-            from(components["java"])
+            artifact(tasks.shadowJar) {
+                classifier = null
+            }
+
+            artifact(tasks["sourcesJar"])
 
             if (signing.signatory != null) {
                 signing.sign(this)
