@@ -6,30 +6,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 
-import com.sun.source.tree.ClassTree;
-import com.sun.source.tree.CompilationUnitTree;
-import com.sun.source.tree.MemberSelectTree;
-import com.sun.source.tree.MethodInvocationTree;
-import com.sun.source.tree.MethodTree;
-import com.sun.source.tree.NewClassTree;
-import com.sun.source.tree.Tree;
-import com.sun.source.util.JavacTask;
-import com.sun.source.util.TreePath;
-import com.sun.source.util.TreeScanner;
-import com.sun.source.util.Trees;
-import com.sun.tools.javac.api.JavacTool;
-import com.sun.tools.javac.comp.Check;
-import com.sun.tools.javac.file.JavacFileManager;
-import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.util.Context;
+import com.sun.source.tree.sfu_rpkg.CompilationUnitTree;
+import com.sun.source.util.sfu_rpkg.JavacTask;
+import com.sun.source.util.sfu_rpkg.Trees;
+import com.sun.tools.javac.api.sfu_rpkg.JavacTool;
+import com.sun.tools.javac.file.sfu_rpkg.JavacFileManager;
+import com.sun.tools.javac.util.sfu_rpkg.Context;
 
 import net.fabricmc.mappingio.format.Tiny1Reader;
 import net.fabricmc.mappingio.tree.MemoryMappingTree;

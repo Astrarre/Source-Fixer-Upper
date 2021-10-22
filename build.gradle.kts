@@ -22,6 +22,7 @@ repositories {
 dependencies {
     implementation("net.fabricmc", "mapping-io", "0.3.0")
 
+    implementation(files(RepackagedJavacProvider.createJavacJar(buildDir)))
     // This doesn't work :suffer:
     // "shadowJavac"(files(zipTree("D:\\Programs\\AdoptOpenJDK\\jdk-16.0.1.9-hotspot\\jmods\\jdk.compiler.jmod")))
     // This works
@@ -52,33 +53,14 @@ java {
     // withJavadocJar()
 }
 
-val arguments = run {
-    val exports = listOf(
-        "jdk.compiler/com.sun.tools.javac.api",
-        "jdk.compiler/com.sun.tools.javac.file",
-        "jdk.compiler/com.sun.tools.javac.tree",
-        "jdk.compiler/com.sun.tools.javac.util",
-        "jdk.compiler/com.sun.tools.javac.comp",
-        "jdk.javadoc/com.sun.tools.javac.parser",
-        "jdk.javadoc/jdk.javadoc.internal.tool",
-    )
-
-    val arguments = exports.flatMap { listOf("--add-exports", "$it=io.github.astrarre.sfu") }
-    println("Add to your IDE run configs: ${arguments.joinToString(" ")}")
-    arguments
-}
-
 tasks {
     withType<JavaCompile> {
         options.encoding = "UTF-8"
-        options.compilerArgs.addAll(arguments)
-        // Not compatible with --add-exports
-        // options.release.set(16)
+        options.release.set(16)
     }
 
     withType<Test> {
         useJUnitPlatform()
-        jvmArgs(arguments)
     }
 
     withType<Javadoc> {
@@ -131,7 +113,10 @@ publishing {
             url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
         }
 
-        if (project.hasProperty("maven_url") && project.hasProperty("maven_username") && project.hasProperty("maven_password")) {
+        if (project.hasProperty("maven_url") && project.hasProperty("maven_username") && project.hasProperty(
+                "maven_password"
+            )
+        ) {
             maven {
                 url = uri(project.property("maven_url") as String)
 
