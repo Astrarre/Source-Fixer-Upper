@@ -1,0 +1,92 @@
+plugins {
+    id("java-library")
+    id("maven-publish")
+    id("signing")
+    id("com.github.johnrengelman.shadow") version "7.1.0"
+}
+
+group = "io.github.astrarre"
+version = "1.0.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+
+    maven {
+        name = "FabricMC"
+        url = uri("https://maven.fabricmc.net/")
+    }
+}
+
+dependencies {
+    implementation("net.fabricmc:mapping-io:0.3.0")
+    implementation(files(RepackagedJavacProvider.createJavacJar(buildDir)))
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_16
+    targetCompatibility = JavaVersion.VERSION_16
+
+    withSourcesJar()
+    // withJavadocJar()
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+    options.release.set(17)
+}
+
+tasks.withType(Test) {
+    useJUnitPlatform()
+}
+
+tasks.withType(Javadoc) {
+    (options as StandardJavadocDocletOptions).addBooleanOption("html5", true)
+}
+
+shadowJar {
+    relocate("com.sun", "io.github.astrarre.sfu.shadow.com.sun")
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact(tasks.shadowJar) {
+                classifier = null
+            }
+
+            artifact(tasks.sourcesJar)
+
+            if (signing.signatory != null) {
+                signing.sign(this)
+            }
+
+            pom {
+                name.set("Source Fixer Upper")
+                packaging = "jar"
+
+                description.set("A fast remapper for Java source code")
+                url.set("https://github.com/Astrarre/Source-Fixer-Upper")
+
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://spdx.org/licenses/MIT")
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            def releasesRepoUrl = uri("${buildDir}/repos/releases")
+            def snapshotsRepoUrl = uri("${buildDir}/repos/snapshots")
+            name = "Project"
+            url = version.toString().endsWith("SNAPSHOT") ? snapshotsRepoUrl : releasesRepoUrl
+        }
+    }
+}

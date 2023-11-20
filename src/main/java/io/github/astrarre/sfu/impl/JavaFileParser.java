@@ -9,12 +9,12 @@ import java.util.List;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 
-import com.sun.source.tree.sfu_rpkg.CompilationUnitTree;
-import com.sun.source.util.sfu_rpkg.JavacTask;
-import com.sun.source.util.sfu_rpkg.Trees;
-import com.sun.tools.javac.api.sfu_rpkg.JavacTool;
-import com.sun.tools.javac.file.sfu_rpkg.JavacFileManager;
-import com.sun.tools.javac.util.sfu_rpkg.Context;
+import sfu_rpkg.com.sun.source.tree.CompilationUnitTree;
+import sfu_rpkg.com.sun.source.util.JavacTask;
+import sfu_rpkg.com.sun.source.util.Trees;
+import sfu_rpkg.com.sun.tools.javac.api.JavacTool;
+import sfu_rpkg.com.sun.tools.javac.file.JavacFileManager;
+import sfu_rpkg.com.sun.tools.javac.util.Context;
 
 import net.fabricmc.mappingio.format.Tiny1Reader;
 import net.fabricmc.mappingio.tree.MemoryMappingTree;

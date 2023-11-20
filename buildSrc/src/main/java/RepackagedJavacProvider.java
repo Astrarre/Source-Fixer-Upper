@@ -1,54 +1,74 @@
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
-
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.objectweb.asm.*;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.analysis.Analyzer;
-import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.Frame;
-import org.objectweb.asm.tree.analysis.Interpreter;
-import org.objectweb.asm.tree.analysis.SourceInterpreter;
-import org.objectweb.asm.tree.analysis.SourceValue;
+import org.objectweb.asm.tree.analysis.*;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.util.stream.Collectors;
 
 public class RepackagedJavacProvider {
     public static final Type STRING = Type.getType(String.class);
+
     public static Path createJavacJar(File buildDir) throws IOException {
-        Path of = Path.of(buildDir.getPath(), "javac_sfu_rpkg.jar");
-        try(FileSystem system = createZip(of)) {
-            Path root = system.getPath("/");
-            var path = FileSystems.getFileSystem(URI.create("jrt:/")).getPath("modules", "jdk.compiler");
-            var classes = Files.walk(path).filter(p -> {
-                String s = p.toString();
-                return s.endsWith(".class");
-            }).map(p -> {
-                var classFile = path.relativize(p).toString();
-                return classFile.substring(0, classFile.length() - 6);
-            }).collect(Collectors.toUnmodifiableSet());
+        Files.createDirectories(buildDir.toPath());
+        Path of = buildDir.toPath().resolve("javac_sfu_rpkg.jar");
+
+        if (Files.exists(of)) {
+            return of;
+        }
+
+        try (var jar = new JarOutputStream(Files.newOutputStream(of))) {
+            var compiler = FileSystems.getFileSystem(URI.create("jrt:/")).getPath("modules", "jdk.compiler");
+            var classes = Files.walk(compiler)
+                    .filter(p -> p.toString().endsWith(".class"))
+                    .map(p -> {
+                        var classFile = compiler.relativize(p).toString();
+                        return classFile.substring(0, classFile.length() - 6);
+                    })
+                    .collect(Collectors.toUnmodifiableSet());
+            var packages = classes.stream()
+                    .map(s -> {
+                        int endIndex = s.lastIndexOf('/');
+
+                        if (endIndex != -1) {
+                            return s.substring(0, endIndex);
+                        } else {
+                            return null;
+                        }
+                    })
+                    .collect(Collectors.toSet());
+
             class Repackager extends Remapper {
                 @Override
                 public String map(String internalName) {
-                    return (classes.contains(internalName)) ? repackage(internalName) : internalName;
+                    return classes.contains(internalName) ? repackage(internalName) : internalName;
+                }
+
+                @Override
+                public String mapModuleName(String name) {
+                    if ("jdk.compiler".equals(name)) {
+                        return "io.github.astrarre.sfu.jdk.compiler";
+                    }
+
+                    return super.mapModuleName(name);
+                }
+
+                @Override
+                public String mapPackageName(String name) {
+                    return packages.contains(name) ? repackage(name) : name;
                 }
             }
 
@@ -57,20 +77,21 @@ public class RepackagedJavacProvider {
                 final MethodVisitor visitor;
                 List<RepackageNode> nodes;
 
-                record RepackageNode(int index, int stack) {}
+                record RepackageNode(int index, int stack) {
+                }
 
-                public ResourceBundleRemapper(String owner, MethodVisitor visitor) {
-                    super(Opcodes.ASM9);
+                public ResourceBundleRemapper(int api, int access, String name, String descriptor, String signature, String[] exceptions, String owner, MethodVisitor visitor) {
+                    super(api, access, name, descriptor, signature, exceptions);
                     this.owner = owner;
                     this.visitor = visitor;
                 }
 
                 @Override
                 public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                    if((name.equals("getBundle") && owner.equals("java/util/ResourceBundle") && descriptor.startsWith("(Ljava/lang/String;")) ||
-                       (name.equals("forName") && owner.equals("java/lang/Class"))) {
+                    if ((owner.equals("java/util/ResourceBundle") && name.equals("getBundle") && descriptor.startsWith("(Ljava/lang/String;")) ||
+                            (owner.equals("java/lang/Class") && name.equals("forName"))) {
                         var nodes = this.nodes;
-                        if(nodes == null) {
+                        if (nodes == null) {
                             this.nodes = nodes = new ArrayList<>();
                         }
 
@@ -80,28 +101,29 @@ public class RepackagedJavacProvider {
 
                     super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
 
-                    if(name.equals("getName") && owner.equals("java/lang/Class") && descriptor.equals("()Ljava/lang/String;")) {
-                        super.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/astrarre/sfu/JavacHack", "unrepackage", "(Ljava/lang/String;)Ljava/lang/String;");
+                    if (owner.equals("java/lang/Class") && name.equals("getName") && descriptor.equals("()Ljava/lang/String;")) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/astrarre/sfu/JavacHack", "unrepackage", "(Ljava/lang/String;)Ljava/lang/String;", false);
                     }
                 }
 
                 @Override
                 public void visitInsn(int opcode) {
-                    if(opcode == Opcodes.ARETURN && this.owner.equals("com/sun/tools/javac/resources/ct")) {
-                        super.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/astrarre/sfu/JavacHack", "addConstant", "([[Ljava/lang/Object;)[[Ljava/lang/Object;");
+                    if (opcode == Opcodes.ARETURN && this.owner.equals("com/sun/tools/javac/resources/ct")) {
+                        super.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/astrarre/sfu/JavacHack", "addConstant", "([[Ljava/lang/Object;)[[Ljava/lang/Object;", false);
                     }
+
                     super.visitInsn(opcode);
                 }
 
                 @Override
                 public void visitEnd() {
-                    if(this.nodes != null) {
+                    if (this.nodes != null) {
                         Interpreter<SourceValue> interpreter = new SourceInterpreter();
                         Analyzer<SourceValue> analyzer = new Analyzer<>(interpreter);
                         try {
                             this.tryCatchBlocks = List.of();
                             Frame<SourceValue>[] analyze = analyzer.analyze(this.owner, this);
-                            for(RepackageNode node : nodes) {
+                            for (RepackageNode node : nodes) {
                                 Frame<SourceValue> frame = analyze[node.index];
                                 AbstractInsnNode string = frame.getStack((frame.getStackSize() - 1) - node.stack).insns.iterator().next();
                                 MethodInsnNode repackage = new MethodInsnNode(
@@ -111,7 +133,7 @@ public class RepackagedJavacProvider {
                                         "(Ljava/lang/String;)Ljava/lang/String;");
                                 this.instructions.insert(string, repackage);
                             }
-                        } catch(AnalyzerException e) {
+                        } catch (AnalyzerException e) {
                             throw new RuntimeException(this.owner, e);
                         }
                     }
@@ -119,56 +141,82 @@ public class RepackagedJavacProvider {
                     this.accept(this.visitor);
                 }
             }
-            Files.walk(path).filter(Files::isRegularFile).forEach(p -> {
-                Path dstFile;
-                Callable<?> after;
-                if(p.toString().endsWith(".class")) {
-                    dstFile = root.resolve(repackage(path.relativize(p).toString()));
-                    after = () -> {
-                        var reader = new ClassReader(Files.readAllBytes(p));
-                        var writer = new ClassWriter(0);
-                        var rpkgr = new ClassRemapper(writer, new Repackager()) {
-                            @Override
-                            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                                ResourceBundleRemapper remapper = new ResourceBundleRemapper(
-                                        this.className,
-                                        super.visitMethod(access, name, descriptor, signature, exceptions));
-                                remapper.access = access;
-                                remapper.name = name;
-                                remapper.desc = descriptor;
-                                remapper.signature = signature;
-                                remapper.exceptions = exceptions == null ? null : new ArrayList<>(List.of(exceptions));
-                                return remapper;
-                            }
-                        };
-                        reader.accept(rpkgr, 0);
-                        return Files.write(dstFile, writer.toByteArray());
-                    };
-                } else {
-                    dstFile = root.resolve(path.relativize(p).toString());
-                    after = () -> Files.copy(p, dstFile);
+
+            Files.walkFileTree(compiler, new FileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    return FileVisitResult.CONTINUE;
                 }
-                try {
-                    Path parent = dstFile.getParent();
-                    if(parent != null) {
-                        Files.createDirectories(parent);
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (Files.isRegularFile(file)) {
+                        String name = compiler.relativize(file).toString();
+
+                        if ("module-info.class".equals(name)) {
+                            var writer = new ClassWriter(0);
+                            new ClassReader(Files.readAllBytes(file)).accept(new ClassRemapper(writer, new Repackager()) {
+                                @Override
+                                public ModuleVisitor visitModule(String name, int flags, String version) {
+                                    return new ModuleVisitor(api, super.visitModule(name, flags, version)) {
+                                        @Override
+                                        public void visitExport(String packaze, int access, String... modules) {
+                                            super.visitExport(packaze, access, (String[]) null);
+                                        }
+                                    };
+                                }
+                            }, 0);
+                            jar.putNextEntry(new JarEntry("module-info.class"));
+                            jar.write(writer.toByteArray());
+                        } else {
+                            if (name.endsWith(".class")) {
+                                var writer = new ClassWriter(0);
+                                new ClassReader(Files.readAllBytes(file)).accept(new ClassRemapper(writer, new Repackager()) {
+                                    @Override
+                                    public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                                        return new ResourceBundleRemapper(
+                                                Opcodes.ASM9,
+                                                access,
+                                                name,
+                                                descriptor,
+                                                signature,
+                                                exceptions,
+                                                this.className,
+                                                super.visitMethod(access, name, descriptor, signature, exceptions));
+                                    }
+                                }, 0);
+                                jar.putNextEntry(new JarEntry(repackage(name)));
+                                jar.write(writer.toByteArray());
+                            } else {
+                                jar.putNextEntry(new JarEntry(name));
+                                Files.copy(file, jar);
+                            }
+                        }
                     }
-                    after.call();
-                } catch(Exception e) {
-                    throw new RuntimeException(e);
+
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                    return FileVisitResult.CONTINUE;
                 }
             });
         }
+
         return of;
     }
 
     static String repackage(String path) {
-        int lastIndex = path.lastIndexOf('/');
-        return path.substring(0, lastIndex + 1) + "sfu_rpkg/" + path.substring(lastIndex + 1);
-    }
+        if ("module-info".equals(path) || "module-info.class".equals(path)) {
+            return path;
+        }
 
-    static FileSystem createZip(Path path) throws IOException {
-        Files.deleteIfExists(path);
-        return FileSystems.newFileSystem(path, Map.of("create", "true"));
+        return "sfu_rpkg/" + path;
     }
 }
