@@ -1,4 +1,4 @@
-package io.github.astrarre.sfu;
+package io.github.astrarre.sfu.impl;
 
 import java.util.Arrays;
 
@@ -13,8 +13,7 @@ public class JavacHack {
      * called in asm code in repackaging
      */
     public static String repackage(String path) {
-        int lastIndex = path.lastIndexOf('.');
-        String str = path.substring(0, lastIndex + 1) + "sfu_rpkg." + path.substring(lastIndex + 1);
+        String str = "sfu_rpkg." + path;
         try {
             Class.forName(str, false, JavacHack.class.getClassLoader());
             return str;
@@ -24,6 +23,6 @@ public class JavacHack {
     }
 
     public static String unrepackage(String path) {
-        return path.replace(".sfu_rpkg.", ".");
+        return path.replace("sfu_rpkg.", "");
     }
 }
