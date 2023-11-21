@@ -10,23 +10,20 @@ public class Remapper {
     public final List<RangeCollectingVisitor.MemberRange> members;
     public final List<RangeCollectingVisitor.TypeRange> types;
     public final MappingTreeView view;
-    public final String from, to;
-    public final int fromIndex, toIndex;
+    public final int srcNamespace, dstNamespace;
 
     public Remapper(StringBuilder builder,
             List<RangeCollectingVisitor.MemberRange> members,
             List<RangeCollectingVisitor.TypeRange> types,
             MappingTreeView view,
-            String from,
-            String to) {
-        this.fromIndex = view.getNamespaceId(from);
-        this.toIndex = view.getNamespaceId(to);
+            int srcNamespace,
+            int dstNamespace) {
+        this.srcNamespace = srcNamespace;
+        this.dstNamespace = dstNamespace;
         this.builder = builder;
         this.members = new ArrayList<>(members);
         this.types = new ArrayList<>(types);
         this.view = view;
-        this.from = from;
-        this.to = to;
         // todo merge into one list before sorting
         // todo resolve from index for proper sorting
         this.members.sort(Comparator.comparingInt(RangeCollectingVisitor.MemberRange::from).reversed());
@@ -36,11 +33,12 @@ public class Remapper {
     public void apply() {
         for (RangeCollectingVisitor.MemberRange member : this.members) {
             String name = member.name();
-            var mapping = member.isMethod() ? this.view.getMethod(member.owner(), name, member.desc(), this.fromIndex)
-                    : this.view.getField(member.owner(), name, member.desc(), this.fromIndex);
+            var mapping = member.isMethod()
+                    ? this.view.getMethod(member.owner(), name, member.desc(), this.srcNamespace)
+                    : this.view.getField(member.owner(), name, member.desc(), this.srcNamespace);
 
             if (mapping != null) {
-                String dst = mapping.getDstName(this.toIndex);
+                String dst = mapping.getDstName(this.dstNamespace);
                 int from = member.from(), to = member.to();
                 if (member.to() == -1) {
                     from = this.findStart(from, name, false);

@@ -55,7 +55,8 @@ public class JavaFileParser {
                 codeTree.accept(jsv, null);
                 MemoryMappingTree tree = new MemoryMappingTree();
                 Tiny1Reader.read(Files.newBufferedReader(Path.of("test.tiny")), tree);
-                Remapper remapper = new Remapper(builder, jsv.members, jsv.types, tree, "from", "to");
+                Remapper remapper = new Remapper(builder, jsv.members, jsv.types, tree, tree.getNamespaceId("from"),
+                        tree.getNamespaceId("to"));
                 remapper.apply();
             }
 
