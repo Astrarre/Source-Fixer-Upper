@@ -1,32 +1,49 @@
 package io.github.astrarre.sfu.impl;
 
 import io.github.astrarre.sfu.SourceFixerUpper;
-import java.io.IOException;
+import java.io.*;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import javax.tools.JavaFileObject;
+import java.util.*;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.NestingKind;
+import javax.tools.*;
 import net.fabricmc.mappingio.tree.MappingTreeView;
 import sfu_rpkg.com.sun.source.tree.CompilationUnitTree;
-import sfu_rpkg.com.sun.source.util.JavacTask;
 import sfu_rpkg.com.sun.source.util.Trees;
+import sfu_rpkg.com.sun.tools.javac.api.ClientCodeWrapper;
+import sfu_rpkg.com.sun.tools.javac.api.JavacTaskImpl;
 import sfu_rpkg.com.sun.tools.javac.api.JavacTool;
-import sfu_rpkg.com.sun.tools.javac.file.JavacFileManager;
-import sfu_rpkg.com.sun.tools.javac.util.Context;
 
 public class SFUImpl implements SourceFixerUpper {
+
+    private static final MethodHandle UNWRAP;
+
+    static {
+        try {
+            UNWRAP = MethodHandles.privateLookupIn(ClientCodeWrapper.class, MethodHandles.lookup())
+                    .findVirtual(ClientCodeWrapper.class, "unwrap",
+                            MethodType.methodType(JavaFileObject.class, JavaFileObject.class));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private Charset charset = Charset.defaultCharset();
     private MappingTreeView tree;
     private int srcNamespace, dstNamespace;
-    private Path output;
 
-    private final List<Path> inputs, sourcepath, classpath;
+    private final Map<Path, Path> inputs;
+    private final List<Path> sourcepath;
+    private final List<Path> classpath;
 
     public SFUImpl() {
-        this.inputs = new ArrayList<>();
+        this.inputs = new LinkedHashMap<>();
         this.sourcepath = new ArrayList<>();
         this.classpath = new ArrayList<>();
     }
@@ -46,8 +63,8 @@ public class SFUImpl implements SourceFixerUpper {
     }
 
     @Override
-    public SourceFixerUpper input(Path root) {
-        this.inputs.add(root);
+    public SourceFixerUpper input(Path input, Path output) {
+        this.inputs.put(input, output);
         return this;
     }
 
@@ -64,38 +81,115 @@ public class SFUImpl implements SourceFixerUpper {
     }
 
     @Override
-    public SourceFixerUpper output(Path output) {
-        this.output = output;
-        return this;
-    }
-
-    @Override
     public void process() throws IOException {
-        Context context = new Context();
-        JavacFileManager jcFileManager = new JavacFileManager(context, true, charset);
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, charset);
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         JavacTool javac = JavacTool.create();
 
-        Path filePath = Files.list(inputs.get(0)).filter(Files::isRegularFile).findAny().get();
-
-        Iterable<? extends JavaFileObject> javaFiles = jcFileManager.getJavaFileObjects(filePath);
-        JavacTask jcTask = javac.getTask(null,
-                jcFileManager,
+        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(null,
+                fileManager,
+                diagnostics,
+                List.of("-proc:none"),
                 null,
-                List.of(),
-                null,
-                javaFiles);
-        Trees trees = Trees.instance(jcTask);
+                inputs.entrySet().stream().map(path -> {
+                    Iterator<? extends JavaFileObject> iterable = fileManager
+                            .getJavaFileObjectsFromPaths(List.of(path.getKey())).iterator();
+                    JavaFileObject object = iterable.next();
+                    assert !iterable.hasNext();
+                    return new WJavaFileObject(object, path.getValue());
+                }).toList());
+        ClientCodeWrapper wrapper = ClientCodeWrapper.instance(task.getContext());
+        Trees trees = Trees.instance(task);
 
-        Iterable<? extends CompilationUnitTree> codeResult = jcTask.parse();
-        jcTask.analyze();
+        Iterable<? extends CompilationUnitTree> codeResult = task.parse();
+        task.analyze();
 
         for (CompilationUnitTree codeTree : codeResult) {
-            var jsv = new RangeCollectingVisitor(trees);
-            codeTree.accept(jsv, null);
-            StringBuilder builder = new StringBuilder(Files.readString(filePath));
-            Remapper remapper = new Remapper(builder, jsv.members, jsv.types, tree, srcNamespace, dstNamespace);
+            var collector = new RangeCollectingVisitor(trees);
+            codeTree.accept(collector, null);
+
+            WJavaFileObject sourceFile;
+
+            try {
+                sourceFile = (WJavaFileObject) (JavaFileObject) UNWRAP.invokeExact(wrapper, codeTree.getSourceFile());
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+
+            StringBuilder builder = new StringBuilder(sourceFile.getCharContent(false));
+            Remapper remapper = new Remapper(builder, collector.members, collector.types, tree, srcNamespace,
+                    dstNamespace);
             remapper.apply();
-            System.out.println(builder);
+            Files.createDirectories(sourceFile.output.getParent());
+            Files.writeString(sourceFile.output, builder.toString(), charset);
+        }
+    }
+
+    record WJavaFileObject(JavaFileObject object, Path output) implements JavaFileObject {
+        @Override
+        public Kind getKind() {
+            return object.getKind();
+        }
+
+        @Override
+        public boolean isNameCompatible(String simpleName, Kind kind) {
+            return object.isNameCompatible(simpleName, kind);
+        }
+
+        @Override
+        public NestingKind getNestingKind() {
+            return object.getNestingKind();
+        }
+
+        @Override
+        public Modifier getAccessLevel() {
+            return object.getAccessLevel();
+        }
+
+        @Override
+        public URI toUri() {
+            return object.toUri();
+        }
+
+        @Override
+        public String getName() {
+            return object.getName();
+        }
+
+        @Override
+        public InputStream openInputStream() throws IOException {
+            return object.openInputStream();
+        }
+
+        @Override
+        public OutputStream openOutputStream() throws IOException {
+            return object.openOutputStream();
+        }
+
+        @Override
+        public Reader openReader(boolean ignoreEncodingErrors) throws IOException {
+            return object.openReader(ignoreEncodingErrors);
+        }
+
+        @Override
+        public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
+            return object.getCharContent(ignoreEncodingErrors);
+        }
+
+        @Override
+        public Writer openWriter() throws IOException {
+            return object.openWriter();
+        }
+
+        @Override
+        public long getLastModified() {
+            return object.getLastModified();
+        }
+
+        @Override
+        public boolean delete() {
+            return object.delete();
         }
     }
 }

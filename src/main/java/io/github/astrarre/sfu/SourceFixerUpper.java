@@ -16,13 +16,11 @@ public interface SourceFixerUpper {
 
     SourceFixerUpper mappings(MappingTreeView tree, int srcNamespace, int dstNamespace);
 
-    SourceFixerUpper input(Path root);
+    SourceFixerUpper input(Path input, Path output);
 
     SourceFixerUpper sourcepath(Path root);
 
     SourceFixerUpper classpath(Path root);
-
-    SourceFixerUpper output(Path output);
 
     void process() throws IOException;
 }
