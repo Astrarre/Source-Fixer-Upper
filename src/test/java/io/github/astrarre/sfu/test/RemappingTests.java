@@ -32,6 +32,7 @@ public class RemappingTests {
     @ValueSource(strings = {
             "fields",
             "verbatim",
+            "move_external_class_simple",
     })
     public void remap(String testCase) throws IOException {
         Path original = originals.resolve(testCase);
