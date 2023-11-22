@@ -30,7 +30,7 @@ public class SFUImpl implements SourceFixerUpper {
             UNWRAP = MethodHandles.privateLookupIn(ClientCodeWrapper.class, MethodHandles.lookup())
                     .findVirtual(ClientCodeWrapper.class, "unwrap",
                             MethodType.methodType(JavaFileObject.class, JavaFileObject.class));
-        } catch (NoSuchMethodException | IllegalAccessException e) {
+        } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
     }
@@ -83,12 +83,14 @@ public class SFUImpl implements SourceFixerUpper {
 
     @Override
     public void process() throws IOException {
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, charset);
+        JavacTool compiler = JavacTool.create();
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        JavacTool javac = JavacTool.create();
+        StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, charset);
 
-        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(null,
+        fileManager.setLocationFromPaths(StandardLocation.CLASS_PATH, classpath);
+        fileManager.setLocationFromPaths(StandardLocation.SOURCE_PATH, sourcepath);
+
+        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(null,
                 fileManager,
                 diagnostics,
                 List.of("-proc:none"),
@@ -124,6 +126,10 @@ public class SFUImpl implements SourceFixerUpper {
             remapper.apply();
             Files.createDirectories(sourceFile.output.getParent());
             Files.writeString(sourceFile.output, builder.toString(), charset);
+        }
+
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+            System.err.println(diagnostic);
         }
     }
 

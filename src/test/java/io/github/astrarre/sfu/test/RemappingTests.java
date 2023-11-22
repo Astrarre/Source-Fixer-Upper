@@ -22,6 +22,8 @@ public class RemappingTests {
     Path originals = root.resolve("original");
     Path remapped = root.resolve("remapped");
     Path mappings = root.resolve("mappings");
+    Path classpaths = root.resolve("classpath");
+    Path sourcepaths = root.resolve("sourcepath");
 
     public RemappingTests() throws IOException {
     }
@@ -35,6 +37,8 @@ public class RemappingTests {
         Path original = originals.resolve(testCase);
         Path output = tempRoot.resolve(testCase);
         Path test = remapped.resolve(testCase);
+        Path classpath = classpaths.resolve(testCase + ".jar");
+        Path sourcepath = sourcepaths.resolve(testCase + ".jar");
 
         MemoryMappingTree tree = new MemoryMappingTree();
 
@@ -50,6 +54,14 @@ public class RemappingTests {
                 sfu.input(path, output.resolve(original.relativize(path)));
             }
         });
+
+        if (Files.exists(classpath)) {
+            sfu.classpath(classpath);
+        }
+
+        if (Files.exists(sourcepath)) {
+            sfu.sourcepath(sourcepath);
+        }
 
         sfu.process();
 
