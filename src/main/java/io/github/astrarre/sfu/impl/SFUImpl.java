@@ -10,6 +10,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.StreamSupport;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.NestingKind;
 import javax.tools.*;
@@ -92,27 +93,27 @@ public class SFUImpl implements SourceFixerUpper {
                 diagnostics,
                 List.of("-proc:none"),
                 null,
-                inputs.entrySet().stream().map(path -> {
-                    Iterator<? extends JavaFileObject> iterable = fileManager
-                            .getJavaFileObjectsFromPaths(List.of(path.getKey())).iterator();
-                    JavaFileObject object = iterable.next();
-                    assert !iterable.hasNext();
-                    return new WJavaFileObject(object, path.getValue());
-                }).toList());
+                inputs.entrySet().stream()
+                        .flatMap(path -> StreamSupport
+                                .stream(fileManager.getJavaFileObjectsFromPaths(List.of(path.getKey())).spliterator(),
+                                        false)
+                                .map(it -> new WrappedJavaFileObject(it, path.getValue())))
+                        .toList());
         ClientCodeWrapper wrapper = ClientCodeWrapper.instance(task.getContext());
         Trees trees = Trees.instance(task);
 
-        Iterable<? extends CompilationUnitTree> codeResult = task.parse();
+        Iterable<? extends CompilationUnitTree> units = task.parse();
         task.analyze();
 
-        for (CompilationUnitTree codeTree : codeResult) {
-            var collector = new RangeCollectingVisitor(trees);
+        for (CompilationUnitTree codeTree : units) {
+            RangeCollectingVisitor collector = new RangeCollectingVisitor(trees);
             codeTree.accept(collector, null);
 
-            WJavaFileObject sourceFile;
+            WrappedJavaFileObject sourceFile;
 
             try {
-                sourceFile = (WJavaFileObject) (JavaFileObject) UNWRAP.invokeExact(wrapper, codeTree.getSourceFile());
+                sourceFile = (WrappedJavaFileObject) (JavaFileObject) UNWRAP.invokeExact(wrapper,
+                        codeTree.getSourceFile());
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
@@ -126,7 +127,7 @@ public class SFUImpl implements SourceFixerUpper {
         }
     }
 
-    record WJavaFileObject(JavaFileObject object, Path output) implements JavaFileObject {
+    record WrappedJavaFileObject(JavaFileObject object, Path output) implements JavaFileObject {
         @Override
         public Kind getKind() {
             return object.getKind();

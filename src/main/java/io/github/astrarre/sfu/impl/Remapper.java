@@ -33,7 +33,7 @@ public class Remapper {
     public void apply() {
         for (RangeCollectingVisitor.MemberRange member : this.members) {
             String name = member.name();
-            var mapping = member.isMethod()
+            MappingTreeView.MemberMappingView mapping = member.isMethod()
                     ? this.view.getMethod(member.owner(), name, member.desc(), this.srcNamespace)
                     : this.view.getField(member.owner(), name, member.desc(), this.srcNamespace);
 

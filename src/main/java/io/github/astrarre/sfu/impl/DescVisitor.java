@@ -87,7 +87,7 @@ public class DescVisitor extends AbstractTypeVisitor14<Void, Void> {
 
     @Override
     public Void visitWildcard(WildcardType t, Void unused) {
-        var type = t.getExtendsBound();
+        TypeMirror type = t.getExtendsBound();
         if (type != null) {
             this.visit(type);
         } else {

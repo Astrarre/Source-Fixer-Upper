@@ -237,7 +237,7 @@ public class RangeCollectingVisitor extends TreeScanner<Void, Void> {
             return;
         JCTree internal = (JCTree) tree;
         // todo test for full qualification
-        var e = new TypeRange(internal.getStartPosition(), internal.getEndPosition(this.root.endPositions),
+        TypeRange e = new TypeRange(internal.getStartPosition(), internal.getEndPosition(this.root.endPositions),
                 this.util.getDesc(tree), false);
         this.types.add(e);
     }

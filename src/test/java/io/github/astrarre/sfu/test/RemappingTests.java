@@ -8,46 +8,53 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import net.fabricmc.mappingio.format.Tiny2Reader;
+import net.fabricmc.mappingio.MappingReader;
+import net.fabricmc.mappingio.format.MappingFormat;
 import net.fabricmc.mappingio.tree.MemoryMappingTree;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class RemappingTests {
 
-    @Test
-    public void remap() throws IOException {
-        Path root = Path.of("src/test/resources");
-        Path originals = root.resolve("original");
-        Path remapped = root.resolve("remapped");
-        Path mappings = root.resolve("mappings");
-        Path tempRoot = Files.createTempDirectory("mercury-test");
+    Path tempRoot = Files.createTempDirectory("mercury-test");
+    Path root = Path.of("src/test/resources");
+    Path originals = root.resolve("original");
+    Path remapped = root.resolve("remapped");
+    Path mappings = root.resolve("mappings");
 
-        for (Path original : Files.list(originals).toList()) {
-            Path name = originals.relativize(original);
-            Path output = tempRoot.resolve(name);
-            Path test = remapped.resolve(name);
+    public RemappingTests() throws IOException {
+    }
 
-            MemoryMappingTree tree = new MemoryMappingTree();
+    @ParameterizedTest(name = ParameterizedTest.ARGUMENTS_PLACEHOLDER)
+    @ValueSource(strings = {
+            "fields",
+            "verbatim",
+    })
+    public void remap(String testCase) throws IOException {
+        Path original = originals.resolve(testCase);
+        Path output = tempRoot.resolve(testCase);
+        Path test = remapped.resolve(testCase);
 
-            try (Reader reader = Files.newBufferedReader(mappings.resolve(name + ".tiny"))) {
-                Tiny2Reader.read(reader, tree);
-            }
+        MemoryMappingTree tree = new MemoryMappingTree();
 
-            SourceFixerUpper sfu = SourceFixerUpper.create()
-                    .mappings(tree, tree.getNamespaceId("a"), tree.getNamespaceId("b"));
-
-            Files.walk(original).forEach(path -> {
-                if (Files.isRegularFile(path)) {
-                    sfu.input(path, output.resolve(original.relativize(path)));
-                }
-            });
-
-            sfu.process();
-
-            verifyDirsAreEqual(output, test, false);
-            verifyDirsAreEqual(test, output, true);
+        try (Reader reader = Files.newBufferedReader(mappings.resolve(testCase + ".tiny"))) {
+            MappingReader.read(reader, MappingFormat.TINY_2_FILE, tree);
         }
+
+        SourceFixerUpper sfu = SourceFixerUpper.create()
+                .mappings(tree, tree.getNamespaceId("a"), tree.getNamespaceId("b"));
+
+        Files.walk(original).forEach(path -> {
+            if (Files.isRegularFile(path)) {
+                sfu.input(path, output.resolve(original.relativize(path)));
+            }
+        });
+
+        sfu.process();
+
+        verifyDirsAreEqual(output, test, false);
+        verifyDirsAreEqual(test, output, true);
     }
 
     private static void verifyDirsAreEqual(Path one, Path other, boolean flip) throws IOException {

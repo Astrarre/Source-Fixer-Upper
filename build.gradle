@@ -18,14 +18,14 @@ repositories {
 }
 
 dependencies {
-    implementation("net.fabricmc:mapping-io:0.3.0")
+    implementation("net.fabricmc:mapping-io:0.5.0")
     implementation(files(RepackagedJavacProvider.createJavacJar(buildDir)))
 
     implementation("org.ow2.asm:asm-util:9.6")
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
 }
 
 java {
